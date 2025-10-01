@@ -4,9 +4,9 @@ import "./index.css";
 import App from "./App.tsx";
 import MyCalendar from "./assets/components/MyCalendar";
 
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
     <MyCalendar />
   </StrictMode>
 );

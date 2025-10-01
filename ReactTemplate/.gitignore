@@ -1,24 +1,71 @@
+# ----------------------------------------------------------------------
+# GLOBALNE IGNOROWANE PLIKI I FOLDERY
+# Pliki, których nigdy nie chcemy w repozytorium (np. środowisko dev)
+# ----------------------------------------------------------------------
+
+# Zależności
+/node_modules
+/package-lock.json
+/npm-debug.log*
+/yarn.lock
+/yarn-error.log*
+
 # Logs
-logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Środowisko (zmienne prywatne)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Build artifacts (wyniki kompilacji)
+/dist
+/build
+/out
+.cache
+.parcel-cache
+
+# ----------------------------------------------------------------------
+# FRONTEND (React / TypeScript)
+# Zakładając, że frontend jest w katalogu 'frontend'
+# ----------------------------------------------------------------------
+
+/frontend/node_modules
+/frontend/package-lock.json
+
+# Build (domyślny folder create-react-app)
+/frontend/build
+
+# Pliki konfiguracyjne specyficzne dla systemu operacyjnego/IDE
+/frontend/.vscode
+/frontend/.idea
+
+# ----------------------------------------------------------------------
+# BACKEND (Node.js / Express / TypeScript)
+# Zakładając, że backend jest w katalogu 'backend'
+# ----------------------------------------------------------------------
+
+/backend/node_modules
+/backend/package-lock.json
+
+# Build (jeśli kompilujesz TS do JS np. w folderze /dist)
+/backend/dist
+
+# Pliki tymczasowe TS
+/backend/*.tsbuildinfo
+
+# ----------------------------------------------------------------------
+# Pliki specyficzne dla Twojego projektu
+# ----------------------------------------------------------------------
+
+# Plik danych, który zmienia się dynamicznie przez API
+# Używasz go jako "bazy danych", ale nie powinien być w repozytorium!
+/backend/tasks.json 
+
+# Jeśli generujesz pliki z ID/kluczami sesji
+/sessions
