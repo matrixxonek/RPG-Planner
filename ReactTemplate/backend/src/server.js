@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { readTasks, writeTasks } = require('./dataHandler');
+const { readEvents, writeEvents } = require('./dataHandler');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -11,55 +11,55 @@ app.use(express.json());
 
 //Trasy API
 
-app.get('/api/tasks', (req,res)=>{
-    const tasks = readTasks();
-    res.json(tasks);
+app.get('/api/events', (req,res)=>{
+    const events = readEvents();
+    res.json(events);
 });
 
-app.post('/api/tasks', (req,res)=>{
-    const newTask = req.body;
-    const tasks = readTasks();
+app.post('/api/events', (req,res)=>{
+    const newEvent = req.body;
+    const events = readEvents();
 
-    const taskWithId = {
+    const eventWithId = {
         id: uuidv4(),
-        ...newTask
+        ...newEvent
     };
 
-    tasks.push(taskWithId);
-    writeTasks(tasks);
+    events.push(eventWithId);
+    writeEvents(events);
 
-    res.status(201).json(taskWithId);
+    res.status(201).json(eventWithId);
 });
 
-app.put('/api/tasks/:id', (req,res)=>{
-    const taskId = req.params.id;
-    const updatedTaskData = req.body;
-    let tasks = readTasks();
+app.put('/api/events/:id', (req,res)=>{
+    const eventId = req.params.id;
+    const updatedEventData = req.body;
+    let events = readEvents();
 
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const eventIndex = events.findIndex(t => t.id === eventId);
 
-    if(taskIndex !== -1){
-        tasks[taskIndex] = { 
-            ...tasks[taskIndex], // Zachowaj stare dane (jak np. ID)
-            ...updatedTaskData,  // Nadpisz nowymi danymi
-            id: taskId           // Upewnij się, że ID jest poprawne
+    if(eventIndex !== -1){
+        events[eventIndex] = { 
+            ...events[eventIndex], // Zachowaj stare dane (jak np. ID)
+            ...updatedEventData,  // Nadpisz nowymi danymi
+            id: eventId           // Upewnij się, że ID jest poprawne
         };
-        writeTasks(tasks);
-        res.json(tasks[taskIndex]);
+        writeEvents(events);
+        res.json(events[eventIndex]);
     }else{
         res.status(404).send({ message: 'Zadanie nie znalezione.' });
     }
 });
 
-app.delete('/api/tasks/:id', (req,res)=>{
-    const taskId = req.params.id;
-    let tasks = readTasks();
+app.delete('/api/events/:id', (req,res)=>{
+    const eventId = req.params.id;
+    let events = readEvents();
 
-    const initialLength = tasks.length;
-    tasks = tasks.filter(t => t.id !== taskId);
+    const initialLength = events.length;
+    events = events.filter(t => t.id !== eventId);
 
-    if (tasks.length < initialLength) {
-        writeTasks(tasks);
+    if (events.length < initialLength) {
+        writeEvents(events);
         // Zwykle status 204 No Content jest używany dla pomyślnego usunięcia
         res.status(204).send(); 
     } else {

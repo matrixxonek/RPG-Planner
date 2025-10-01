@@ -3,7 +3,7 @@ import axios from 'axios';
 // Importuj też swoje typy, jeśli masz je w innym pliku
 import { type TaskApi, type CalendarEvent } from '../types/taskTypes.ts';
 
-const API_URL = 'http://localhost:3001/api/tasks';
+const API_URL = 'http://localhost:3001/api/events';
 
 export function useCalendarTasks(){
   const [events, setEvents] = useState<CalendarEvent[]>([]);

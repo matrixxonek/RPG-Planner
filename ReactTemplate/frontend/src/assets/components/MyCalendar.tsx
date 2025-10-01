@@ -5,7 +5,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css"; 
 import React, { useState, useEffect } from "react";
 import { format, parse, startOfWeek, getDay } from "date-fns";
-import {pl} from "date-fns/locale";
+import {pl} from "date-fns/locale"; 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import axios from "axios";
 import { useCalendarTasks} from '../hooks/useCalendarTasks.ts'
