@@ -8,8 +8,9 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import {pl} from "date-fns/locale"; 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import axios from "axios";
-import { useCalendarTasks} from '../hooks/useCalendarTasks.ts'
-import type { CalendarEvent, TaskApi} from "../types/taskTypes.ts";
+import { useCalendarEvents } from '../hooks/useCalendarTasks.ts'
+import type { CalendarEvent, EventApi} from "../types/taskTypes.ts";
+import FormDisplay from './FormDisplay.tsx';
 
 interface DndProps<TEvent extends object> extends CalendarProps<TEvent> {
     draggable: boolean;
@@ -33,9 +34,10 @@ const localizer = dateFnsLocalizer({
 const DndCalendar = withDragAndDrop(Calendar) as React.ComponentType<DndProps<CalendarEvent>>;
 
 function MyCalendar() {
-  const { events, addTask, updateTask, deleteTask } = useCalendarTasks();
+  const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
   const [currentView, setCurrentView] = useState<View>('month');
   const [currentDate, setCurrentDate] = useState<Date | undefined>(undefined);
+  const [formVisible, setFormVisible] = useState(false);
 
   const handleAdd = (slotInfo: {start: Date, end: Date, slots: Date[] }) =>{
     const title = window.prompt('Wpisz nazwę nowego zadania: ');
@@ -48,7 +50,7 @@ function MyCalendar() {
       end: slotInfo.end,
       allDay: false,
     };
-    addTask(newTask as Omit<CalendarEvent, 'id'>);
+    addEvent(newTask as Omit<CalendarEvent, 'id'>);
   };
 
   const handleModify = (args: any) => { 
@@ -79,44 +81,61 @@ function MyCalendar() {
         allDay: finalAllDay
     };
     
-    updateTask(updatedEvent);
-};
+    updateEvent(updatedEvent);
+  };
 
   const handleDelete = (event: CalendarEvent) => {
     if (window.confirm(`Czy na pewno chcesz usunąć zadanie: ${event.title}?`)) {
-            deleteTask(event.id);
+            deleteEvent(event.id);
         }
   }
 
+  const handleFormOpen = () => { //musi przyjmować dane o klikniętym/przesuniętym miejscu/evencie {prawdopodobnie trzeba będzie przeładować funkcję 
+  // możliwościami}
+    setFormVisible(true);
+  }
+
+  const handleFormClose = () => {
+    setFormVisible(false);
+  }
+
+  const handleFormSave = () => {
+    //logika modyfikacji taska - wywoływanie funkcji handle Task/Event Add
+    setFormVisible(false);
+  }
+
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="h-screen p-4">
-        <h1 className="text-xl font-bold mb-4">Mój Kalendarz</h1>
-        <DndCalendar
-          localizer={localizer}
-          events={events}
-          startAccessor={(event: CalendarEvent) => event.start} 
-          endAccessor={(event: CalendarEvent) => event.end}   
-          defaultView="month"
-          views={["month", "week", "day"]}
-          style={{ height: "80vh" }}
-          culture="pl"
-          onView={setCurrentView}
-          view={currentView}
-          date={currentDate}
-          onNavigate={date => {
-              setCurrentDate(date);
-          }}
-          selectable
-          draggable
-          resizable
-          onSelectSlot={handleAdd}
-          onEventDrop={handleModify}
-          onEventResize={handleModify}
-          onSelectEvent={handleDelete}
-        />
-      </div>
-    </DndProvider>
+    <div>
+      <DndProvider backend={HTML5Backend}>
+        <div className="h-screen p-4">
+          <h1 className="text-xl font-bold mb-4">Mój Kalendarz</h1>
+          <DndCalendar
+            localizer={localizer}
+            events={events}
+            startAccessor={(event: CalendarEvent) => event.start} 
+            endAccessor={(event: CalendarEvent) => event.end}   
+            defaultView="month"
+            views={["month", "week", "day"]}
+            style={{ height: "80vh" }}
+            culture="pl"
+            onView={setCurrentView}
+            view={currentView}
+            date={currentDate}
+            onNavigate={date => {
+                setCurrentDate(date);
+            }}
+            selectable
+            draggable
+            resizable
+            onSelectSlot={handleFormOpen}
+            onEventDrop={handleFormOpen}
+            onEventResize={handleFormOpen}
+            onSelectEvent={handleFormOpen}
+          />
+        </div>
+      </DndProvider>
+      {formVisible && (<FormDisplay onClose = {handleFormClose} onSubmit={handleFormClose}/>)}
+    </div>
   );
 }
 

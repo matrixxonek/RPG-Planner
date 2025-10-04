@@ -1,0 +1,42 @@
+2 typy danych:
+    *Task{
+        id
+        deadline
+        progress[planned, working on it, completed]
+        title
+        cyclical
+        details
+        category[mind, physical, social]
+    }
+    *Event{
+        id
+        start
+        end
+        title
+        details
+        cyclical
+        allDay
+    }
+
+Trzeba to połączyć żeby jedna metoda to uniwersalnie przyjmowała
+
+ItemInterface{
+    type: [Task, Event]
+    action: [AddNew, Modify] //kliknięcie w pusty slot -> AddNew, D&D/kliknięcie w event -> Modify. To chyba jakoś osobno z funkcji
+    content: event/task object Task | Event | null
+}
+
+na każdą możliwą interakcję chcemy otrzymywać format ItemInterface:
+    - na zaznaczenie pustego slota/eventu(taska)/D&D -> pobieramy dane odpowiednie zwrócone przez RBC i konwersja danych na ItemInterface
+
+Wtedy sprawdzamy z obiektu ItemInterface type (lub dla tworzenia nowego domyślnie event) i renderujemy odpowiedni formularz, który wypełniamy danymi
+
+Przycisk usuń - jeśli action = modify to usuwa (API Delete), jeśli action = AddNew to "task nie został dodany" || alternatywnie przycisk renderowany warunkowo w zależności od action
+Przycisk anuluj - wywołuje prostą funkcję handleFormClose() która zmienia useState aktywności formularza na false
+Przycisk submit - komunikuje się z api w zależności od parametru action. Wysyła żądania do api backend POST/PUT
+
+Funkcje handleAddNew i handleModify = ustalają parametr action odpowiednio na AddNew/Modify i tworzą nowy obiekt ItemInterface najlepiej wywołując funkcję createItemInterface(action).
+
+Do API idą tylko dane z parametru content. Pozostałe służą prawidłowemu działaniu kodu.
+
+Osobne endpointy API dla eventu i taska.
