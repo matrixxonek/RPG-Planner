@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { type EventApi, type CalendarEvent } from '../types/taskTypes.ts';
+import { type EventApi, type Event } from '../types/taskTypes.ts';
 
 const API_URL = 'http://localhost:3001/api/events';
 
-export function useCalendarEvents(){
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+export function useEvents(){
+  const [events, setEvents] = useState<Event[]>([]);
   // Logika konwersji String -> Date
-    const mapApiToCalendar = (events: EventApi[]): CalendarEvent[] => {
+    const mapApiToCalendar = (events: EventApi[]): Event[] => {
         return events.map(event => ({
             ...event,
             start: new Date(event.start),
@@ -16,7 +16,7 @@ export function useCalendarEvents(){
     };
 
     // Logika konwersji Date -> String (na potrzeby wysyłki)
-    const mapCalendarToApi = (event: CalendarEvent): EventApi => {
+    const mapCalendarToApi = (event: Event): EventApi => {
         return {
             ...event,
             start: event.start.toISOString(),
@@ -33,8 +33,8 @@ export function useCalendarEvents(){
         }
     };
 
-    const addEvent = async(neweventData: Omit<CalendarEvent, 'id'>) =>{
-      const apiData = mapCalendarToApi(neweventData as CalendarEvent);
+    const addEvent = async(neweventData: Omit<Event, 'id'>) =>{
+      const apiData = mapCalendarToApi(neweventData as Event);
       try {
         const response = await axios.post<EventApi>(API_URL, apiData);
         const newEvent = mapApiToCalendar([response.data])[0];
@@ -44,7 +44,7 @@ export function useCalendarEvents(){
       }
     }
 
-    const updateEvent = async(updatedEvent: CalendarEvent) =>{
+    const updateEvent = async(updatedEvent: Event) =>{
       const apiData = mapCalendarToApi(updatedEvent);
       try {
         await axios.put(`${API_URL}/${updatedEvent.id}`, apiData);

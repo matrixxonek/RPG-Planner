@@ -8,8 +8,9 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import {pl} from "date-fns/locale"; 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import axios from "axios";
-import { useCalendarEvents } from '../hooks/useCalendarTasks.ts'
-import type { CalendarEvent, EventApi} from "../types/taskTypes.ts";
+import { useEvents } from '../hooks/useCalendarTasks.ts'
+import type { Event, Task, ItemToEdit, EditableItem, ItemDraft, } from '../types/taskTypes'; 
+import { isModification } from "../types/taskTypes";
 import FormDisplay from './FormDisplay.tsx';
 
 interface DndProps<TEvent extends object> extends CalendarProps<TEvent> {
@@ -31,78 +32,111 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const DndCalendar = withDragAndDrop(Calendar) as React.ComponentType<DndProps<CalendarEvent>>;
+const DndCalendar = withDragAndDrop(Calendar) as React.ComponentType<DndProps<Event>>;
 
 function MyCalendar() {
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
+  const { events, addEvent, updateEvent, deleteEvent } = useEvents();
   const [currentView, setCurrentView] = useState<View>('month');
   const [currentDate, setCurrentDate] = useState<Date | undefined>(undefined);
   const [formVisible, setFormVisible] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<ItemToEdit>(null); 
 
-  const handleAdd = (slotInfo: {start: Date, end: Date, slots: Date[] }) =>{
-    const title = window.prompt('Wpisz nazwę nowego zadania: ');
-    if(!title)
-      return
+  const handleFormClose = () => setItemToEdit(null); 
 
-    const newTask = {
-      title,
-      start: slotInfo.start,
-      end: slotInfo.end,
-      allDay: false,
-    };
-    addEvent(newTask as Omit<CalendarEvent, 'id'>);
-  };
+  const handleUnifiedSubmit = (item: ItemToEdit) => {
+    if (!item) return; // Zabezpieczenie przed nullem!
 
-  const handleModify = (args: any) => { 
-    // Argumenty z onEventDrop/onEventResize mogą mieć różne kształty, ale kluczowe są te pola
-    const { event, start, end, isAllDay, droppedOnAllDaySlot } = args;
+    // 1. ZAMKNIJ MODAL natychmiast, aby dać UX feedback
+    handleFormClose(); 
 
-    // 1. Konwersja dat na obiekty Date (najbezpieczniejsza, bo hook API oczekuje Date)
-    const newStart = typeof start === 'string' ? new Date(start) : start;
-    const newEnd = typeof end === 'string' ? new Date(end) : end;
-    
-    // 2. Logika zarządzania flagą allDay przy przeciąganiu (z klasycznego przykładu D&D)
-    let finalAllDay = event.allDay;
-    if (droppedOnAllDaySlot !== undefined) { 
-        if (!event.allDay && droppedOnAllDaySlot) {
-            finalAllDay = true;
-        } else if (event.allDay && !droppedOnAllDaySlot) {
-            finalAllDay = false;
-        }
+    // 2. SPRAWDZENIE: Czy to Edycja czy Tworzenie? (Używamy teraz Type Guard z TaskTypes)
+    if (isModification(item)) {
+      // Scenariusz 1: EDYCJA (obiekt ma ID)
+      console.log(`Aktualizacja ${item.dataType} o ID: ${item.id}`, item);
+      
+      // Wysłanie do ujednoliconej funkcji aktualizacji
+      //updateEvent(item); // Załóżmy, że updateEvent obsłuży Task/Event
     } else {
-        // Użyj isAllDay przekazanego przez resize, jeśli istnieje
-        finalAllDay = isAllDay ?? event.allDay;
+      // Scenariusz 2: TWORZENIE (obiekt jest Draftem bez ID)
+      // W tym bloku 'item' ma gwarancję, że jest typu ItemDraft (EventDraft | TaskDraft)
+      console.log(`Dodawanie nowego ${item.dataType}:`, item);
+      
+      // Wysłanie do ujednoliconej funkcji dodawania
+      if (item.dataType === 'event') {
+          //addEvent(item as ItemDraft);
+      } 
+      // Analogicznie, jeśli obsługujesz Taski, tutaj byłoby:
+      // else if (item.dataType === 'task') {
+      //     addTask(item as TaskDraft); 
+      // }
     }
-
-    const updatedEvent: CalendarEvent = {
-        ...event,
-        start: newStart, // Używamy skonwertowanych dat
-        end: newEnd,
-        allDay: finalAllDay
-    };
-    
-    updateEvent(updatedEvent);
   };
 
-  const handleDelete = (event: CalendarEvent) => {
-    if (window.confirm(`Czy na pewno chcesz usunąć zadanie: ${event.title}?`)) {
-            deleteEvent(event.id);
-        }
+  const handleOnDelete = (id: string) => {
+    // Tutaj logika usunięcia
+    console.log("Usuwanie elementu o ID:", id);
+    deleteEvent(id);
+    handleFormClose();
   }
 
-  const handleFormOpen = () => { //musi przyjmować dane o klikniętym/przesuniętym miejscu/evencie {prawdopodobnie trzeba będzie przeładować funkcję 
-  // możliwościami}
-    setFormVisible(true);
-  }
+  // Ujednolicona funkcja do otwierania modala
+  const handleFormOpen = (
+      // Typy wejściowe z react-big-calendar
+      interactionData: 
+          | { start: Date, end: Date, slots: Date[] } // onSelectSlot
+          | Event // onSelectEvent
+          | any // onEventDrop / onEventResize (dla uproszczenia typowania D&D)
+      
+  ) => {
+      let draft: ItemToEdit = null;
 
-  const handleFormClose = () => {
-    setFormVisible(false);
-  }
+      if ('start' in interactionData && 'end' in interactionData && 'slots' in interactionData) {
+          // SCENARIUSZ 1: KLIKNIĘCIE W PUSTY SLOT (TWORZENIE NOWEGO EVENTU)
+          const slotInfo = interactionData;
+          
+          draft = {
+              dataType: 'event', // Nowy element jest domyślnie Eventem
+              title: 'Nowe wydarzenie',
+              start: slotInfo.start,
+              end: slotInfo.end,
+              // ... ustaw inne domyślne pola dla Eventu ...
+          } as Omit<Event, 'id'>; // Typujemy jako Draft Eventu
+          
+          // Otwieramy modal z danymi
+          setItemToEdit(draft); 
+      
+      } else if ('id' in interactionData && 'dataType' in interactionData) {
+          // SCENARIUSZ 2: KLIKNIĘCIE W ISTNIEJĄCY EVENT/TASK (EDYCJA)
+          const item = interactionData as Event | Task;
+          
+          // Używamy pełnego obiektu z ID do edycji
+          setItemToEdit(item); 
+      } else if ('event' in interactionData && ('start' in interactionData || 'end' in interactionData)) {
+          // SCENARIUSZ 3: ZAKOŃCZENIE D&D LUB ZMIANY ROZMIARU (NATYCHMIASTOWA AKTUALIZACJA)
+          const { event, start, end } = interactionData;
+          
+          // Konwersja dat
+          const newStart = typeof start === 'string' ? new Date(start) : start;
+          const newEnd = typeof end === 'string' ? new Date(end) : end;
 
-  const handleFormSave = () => {
-    //logika modyfikacji taska - wywoływanie funkcji handle Task/Event Add
-    setFormVisible(false);
-  }
+          // Tworzymy zaktualizowany obiekt
+          const updatedItem = {
+              ...event,
+              start: newStart,
+              end: newEnd,
+              // ... obsługa allDay i innych pól D&D
+          } as Event; // Zakładamy, że D&D dotyczy tylko Eventów
+
+          // Natychmiast wysyłamy do API, BEZ otwierania modala
+          handleUnifiedSubmit(updatedItem); 
+
+          return; // Zakończ, nie otwieraj modala
+
+      } else {
+          // Nieznana interakcja, zamykamy modal i nic nie robimy
+          setItemToEdit(null);
+      }
+  };
 
   return (
     <div>
@@ -112,8 +146,8 @@ function MyCalendar() {
           <DndCalendar
             localizer={localizer}
             events={events}
-            startAccessor={(event: CalendarEvent) => event.start} 
-            endAccessor={(event: CalendarEvent) => event.end}   
+            startAccessor={(event: Event) => event.start} 
+            endAccessor={(event: Event) => event.end}   
             defaultView="month"
             views={["month", "week", "day"]}
             style={{ height: "80vh" }}
@@ -134,7 +168,14 @@ function MyCalendar() {
           />
         </div>
       </DndProvider>
-      {formVisible && (<FormDisplay onClose = {handleFormClose} onSubmit={handleFormClose}/>)}
+      {itemToEdit !== null && (
+        <FormDisplay 
+            initialData={itemToEdit} 
+            onSubmit={handleUnifiedSubmit} // Ujednolicony handler submitu
+            onClose={handleFormClose}
+            onDelete={handleOnDelete}
+        />
+    )}
     </div>
   );
 }
