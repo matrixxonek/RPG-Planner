@@ -1,0 +1,31 @@
+[
+  {
+    "id": "t1",
+    "title": "Wysłać raport kwartalny",
+    "dataType": "task",
+    "deadline": "2025-10-20T17:00:00.000Z",
+    "progress": "planned",
+    "category": "mind"
+  },
+  {
+    "id": "c45199ae-557f-4842-b7d3-ea3ab526c30c",
+    "dataType": "task",
+    "title": "Program1 Java",
+    "deadline": "2025-10-21T18:00:00.000Z",
+    "progress": "working on it",
+    "category": "social",
+    "details": "rozwiązać zadanie 1",
+    "start": "2025-10-14T18:00:00.000Z",
+    "end": "2025-10-15T18:00:00.000Z"
+  },
+  {
+    "id": "6d832646-942f-487f-a584-cb89d7f67bfd",
+    "dataType": "task",
+    "title": "Nowe wydarzenie",
+    "deadline": "2025-10-17T16:00:00.000Z",
+    "progress": "planned",
+    "category": "mind",
+    "start": "2025-10-17T19:00:00.000Z",
+    "end": "2025-10-18T19:00:00.000Z"
+  }
+]

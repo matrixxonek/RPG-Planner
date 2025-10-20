@@ -1,87 +1,105 @@
 import 'tailwindcss';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import * as TaskTypes from '../types/taskTypes';
+
+// Stałe dla kategorii Eventów (zgodne z MyCalendar.tsx)
+const EVENT_CATEGORIES = [
+    { value: 'praca', label: 'Praca' },
+    { value: 'prywatne', label: 'Prywatne' },
+    { value: 'inne', label: 'Inne' },
+];
+
 interface FormProps {
     initialData: TaskTypes.ItemToEdit;
     onSubmit: (item: TaskTypes.EditableItem | TaskTypes.ItemDraft) => void;
     onClose: () => void;
+    // Oczekujemy ID do usunięcia
     onDelete: (id: string) => void;
 }
 
 function FormDisplay(props: FormProps){
     if (!props.initialData) return null;
 
+    // Typujemy stan jawnie, aby uniknąć problemów z 'null' w funkcjach aktualizujących
     const [formData, setFormData] = useState<TaskTypes.ItemToEdit>(props.initialData); 
     const [confirmDelete, setConfirmDelete] = useState(false);
 
+    // Zapewnienie, że stan jest aktualizowany, gdy props.initialData się zmieni
+    useEffect(() => {
+        setFormData(props.initialData);
+    }, [props.initialData]);
+
+    // Używamy guardów typu do określenia stanu formularza
     const isEditing = TaskTypes.isModification(props.initialData);
-    const isEventType = TaskTypes.isEvent(formData);
+    // Sprawdzamy aktualny typ w stanie
+    const isEventType = TaskTypes.isEvent(formData); 
+    
     const itemTypeLabel = isEventType ? "Wydarzenie (Event)" : "Zadanie (Task)";
     const itemActionLabel = isEditing 
         ? `Edycja: ${formData?.title || 'Brak tytułu'}` 
         : `Tworzenie: ${itemTypeLabel}`;
-
+    
     // --- Utility Functions ---
 
     // Funkcja do formatowania daty dla input[type="datetime-local"]
     const formatDateInput = (date: Date): string => {
         if (!(date instanceof Date) || isNaN(date.getTime())) return '';
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
+        // Używamy toISOString i obcinamy, co jest niezawodnym sposobem dla input[datetime-local]
+        return date.toISOString().slice(0, 16); 
     };
 
+    // Ujednolicony handler zmian w formularzu
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
+        const { name, value, type } = e.target;
+        
         setFormData(prev => {
+            // Ponieważ stan jest ItemToEdit (zawiera null), musimy to obsłużyć
             if (!prev) return null;
-
+            
             // Obsługa dat
             if (name === 'start' || name === 'end' || name === 'deadline') {
                 const dateValue = new Date(value);
-                // Prosta walidacja daty
                 if (isNaN(dateValue.getTime())) return prev; 
                 return { ...prev, [name]: dateValue };
             }
 
-            // Obsługa checkboxów
-            if (e.target.type === 'checkbox') {
+            // Obsługa checkboxów (allDay, cyclical)
+            if (type === 'checkbox') {
                  return { ...prev, [name]: (e.target as HTMLInputElement).checked };
             }
             
-            // Obsługa pozostałych pól
+            // Obsługa pozostałych pól (title, details, progress, category)
             return { ...prev, [name]: value };
         });
     }, []);
 
-    const handleTypeSwitch = () => {
-        if (!formData || isEditing) return; // Przełączamy tylko Draft
+    // Nowa funkcja do obsługi przełączania zakładek w trybie DRAFT
+    const handleTabClick = (newType: 'event' | 'task') => {
+        if (!formData || isEditing || formData.dataType === newType) return; 
 
-        if (TaskTypes.isEvent(formData)) {
+        if (newType === 'task') {
             // Konwersja na Task Draft
-            const eventAsDraft = formData as Omit<TaskTypes.Event, 'id'>;
-            const taskDraft: Omit<TaskTypes.Task, 'id'> = {
+            const eventAsDraft = formData as TaskTypes.EventDraft;
+            const taskDraft: TaskTypes.TaskDraft = {
                 dataType: 'task',
                 title: eventAsDraft.title || 'Nowe zadanie',
                 deadline: eventAsDraft.start || new Date(), // Używamy start jako domyślny deadline
                 progress: 'planned',
-                category: 'mind',
+                category: 'mind', // Domyślna kategoria Taska
                 details: eventAsDraft.details,
                 cyclical: eventAsDraft.cyclical,
             };
             setFormData(taskDraft);
-        } else if (TaskTypes.isTask(formData)) {
+        } else if (newType === 'event') {
              // Konwersja na Event Draft
-            const taskAsDraft = formData as Omit<TaskTypes.Task, 'id'>;
-            const eventDraft: Omit<TaskTypes.Event, 'id'> = {
+            const taskAsDraft = formData as TaskTypes.TaskDraft;
+            const eventDraft: TaskTypes.EventDraft = {
                 dataType: 'event',
                 title: taskAsDraft.title || 'Nowe wydarzenie',
                 start: taskAsDraft.deadline || new Date(),
-                end: new Date(new Date().getTime() + 60 * 60 * 1000), 
+                end: new Date((taskAsDraft.deadline || new Date()).getTime() + 60 * 60 * 1000), // Domyślny koniec: +1h
                 allDay: false,
+                category: taskAsDraft.category ? EVENT_CATEGORIES.find(c => c.value === taskAsDraft.category)?.value || EVENT_CATEGORIES[0].value : EVENT_CATEGORIES[0].value, // Przenosimy category lub domyślny
                 details: taskAsDraft.details,
                 cyclical: taskAsDraft.cyclical,
             };
@@ -97,44 +115,44 @@ function FormDisplay(props: FormProps){
                 return; 
             }
             
-            // Przekazanie ujednoliconego obiektu do rodzica
+            // Przekazanie ujednoliconego obiektu do rodzica i zamknięcie
             props.onSubmit(formData as TaskTypes.EditableItem | TaskTypes.ItemDraft);
-            props.onClose(); // Zamykamy po pomyślnym zapisie
         }
     };
 
     const handleDeleteClick = () => {
-        // Sprawdzenie isEditing jest kluczowe i powinno być wystarczające, 
-        // ponieważ isModification gwarantuje, że initialData ma 'id'.
         if (isEditing) {
             setConfirmDelete(true); // Otwieramy modal potwierdzenia
         }
     };
 
     const confirmDeletion = () => {
-        // Dodatkowe sprawdzenie, czy initialData ma 'id', pomimo isEditing.
-        // Używamy type guard isModification: jeśli initialData jest EditableItem, ma 'id'.
         if (TaskTypes.isModification(props.initialData)) {
-            props.onDelete(props.initialData.id);
-            props.onClose(); // Zamykamy modal po usunięciu
+            // Używamy props.onDelete, które zamyka modal w komponencie nadrzędnym
+            props.onDelete(props.initialData.id); 
         } else {
-             // To jest backup, gdyby próbowano usunąć draft (co jest niemożliwe przez przycisk Usuń)
-             console.error("Nie można usunąć, ponieważ brakuje ID elementu.");
+            console.error("Nie można usunąć, ponieważ brakuje ID elementu.");
         }
+        setConfirmDelete(false);
     };
+
+    // --- RENDEROWANIE PÓL FORMULARZA ---
 
     const renderFormFields = () => {
         if (!formData) return null;
+
+        const currentItem = formData; 
 
         return (
             <div className="space-y-4">
                 {/* 1. Tytuł */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Tytuł</label>
+                    <label htmlFor="title" className="block text-sm font-medium text-gray-700">Tytuł</label>
                     <input 
+                        id="title"
                         type="text" 
                         name="title"
-                        value={formData.title || ''} 
+                        value={currentItem.title || ''} 
                         onChange={handleInputChange}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
                         placeholder="Wpisz tytuł..."
@@ -143,50 +161,53 @@ function FormDisplay(props: FormProps){
 
                 {/* 2. Pole 'Szczegóły' - wspólne dla obu typów */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Szczegóły (opcjonalnie)</label>
+                    <label htmlFor="details" className="block text-sm font-medium text-gray-700">Szczegóły (opcjonalnie)</label>
                     <textarea 
+                        id="details"
                         name="details"
-                        value={formData.details || ''} 
+                        value={currentItem.details || ''} 
                         onChange={handleInputChange}
                         rows={3}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 resize-none"
                         placeholder="Dodaj szczegółowy opis..."
                     />
                 </div>
-
-
-                {/* 3. Przełącznik typu (tylko przy tworzeniu) */}
-                {!isEditing && (
-                    <div className="flex justify-start items-center p-2 bg-indigo-50 rounded-lg">
-                        <span className="text-sm font-medium text-indigo-700 mr-4">Aktualny typ: {itemTypeLabel}</span>
-                        <button 
-                            onClick={handleTypeSwitch} 
-                            className="text-indigo-600 font-semibold text-sm hover:text-indigo-800 transition duration-150"
-                        >
-                            Przełącz na {!isEventType ? 'Wydarzenie' : 'Zadanie'}
-                        </button>
-                    </div>
-                )}
                 
-                {/* 4. Pola specyficzne dla Eventu */}
-                {isEventType && TaskTypes.isEvent(formData) && (
+                {/* 3. Pola specyficzne dla Eventu */}
+                {isEventType && TaskTypes.isEvent(currentItem) && (
                     <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                             <label htmlFor="eventCategory" className="block text-sm font-medium text-gray-700">Kategoria Eventu</label>
+                             <select
+                                id="eventCategory"
+                                name="category"
+                                value={currentItem.category || EVENT_CATEGORIES[0].value}
+                                onChange={handleInputChange}
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                             >
+                                {EVENT_CATEGORIES.map(cat => (
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                ))}
+                             </select>
+                        </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Początek</label>
+                            <label htmlFor="start" className="block text-sm font-medium text-gray-700">Początek</label>
                             <input
+                                id="start"
                                 type="datetime-local"
                                 name="start"
-                                value={formatDateInput(formData.start)}
+                                value={formatDateInput(currentItem.start)}
                                 onChange={handleInputChange}
                                 className="w-full p-3 border border-gray-300 rounded-lg"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Koniec</label>
+                            <label htmlFor="end" className="block text-sm font-medium text-gray-700">Koniec</label>
                             <input
+                                id="end"
                                 type="datetime-local"
                                 name="end"
-                                value={formatDateInput(formData.end)}
+                                value={formatDateInput(currentItem.end)}
                                 onChange={handleInputChange}
                                 className="w-full p-3 border border-gray-300 rounded-lg"
                             />
@@ -196,7 +217,7 @@ function FormDisplay(props: FormProps){
                                 id="allDay"
                                 name="allDay"
                                 type="checkbox"
-                                checked={formData.allDay}
+                                checked={currentItem.allDay}
                                 onChange={handleInputChange}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
                             />
@@ -207,25 +228,27 @@ function FormDisplay(props: FormProps){
                     </div>
                 )}
 
-                {/* 5. Pola specyficzne dla Tasku */}
-                {!isEventType && TaskTypes.isTask(formData) && (
+                {/* 4. Pola specyficzne dla Tasku */}
+                {!isEventType && TaskTypes.isTask(currentItem) && (
                     <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Deadline (Termin)</label>
+                        <div>
+                            <label htmlFor="deadline" className="block text-sm font-medium text-gray-700">Deadline (Termin)</label>
                             <input
+                                id="deadline"
                                 type="datetime-local"
                                 name="deadline"
-                                value={formatDateInput(formData.deadline)}
+                                value={formatDateInput(currentItem.deadline)}
                                 onChange={handleInputChange}
                                 className="w-full p-3 border border-gray-300 rounded-lg"
                             />
                         </div>
                          {/* Progress */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Postęp</label>
+                            <label htmlFor="progress" className="block text-sm font-medium text-gray-700">Postęp</label>
                             <select
+                                id="progress"
                                 name="progress"
-                                value={formData.progress}
+                                value={currentItem.progress}
                                 onChange={handleInputChange}
                                 className="w-full p-3 border border-gray-300 rounded-lg"
                             >
@@ -236,10 +259,11 @@ function FormDisplay(props: FormProps){
                         </div>
                          {/* Category */}
                         <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700">Kategoria</label>
+                            <label htmlFor="taskCategory" className="block text-sm font-medium text-gray-700">Kategoria</label>
                             <select
+                                id="taskCategory"
                                 name="category"
-                                value={formData.category}
+                                value={currentItem.category}
                                 onChange={handleInputChange}
                                 className="w-full p-3 border border-gray-300 rounded-lg"
                             >
@@ -251,28 +275,49 @@ function FormDisplay(props: FormProps){
                     </div>
                 )}
 
-                {/* 6. Pole Cykliczne (wspólne) */}
+                {/* 5. Pole Cykliczne (wspólne) */}
                 <div className="flex items-center pt-2">
                     <input
                         id="cyclical"
                         name="cyclical"
                         type="checkbox"
-                        checked={formData.cyclical || false}
+                        checked={currentItem.cyclical || false}
                         onChange={handleInputChange}
                         className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
                     />
                     <label htmlFor="cyclical" className="ml-2 block text-sm text-gray-900">
-                        Element cykliczny/powtarzalny (TODO: implementacja logiki powtarzania)
+                        Element cykliczny/powtarzalny
                     </label>
                 </div>
             </div>
         );
     };
+
     return(
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 transform transition-all duration-300 scale-100">
-                <h2 className="text-2xl font-extrabold text-gray-900 mb-6 border-b pb-3">{itemActionLabel}</h2>
+                <h2 className="text-2xl font-extrabold text-gray-900 mb-4 border-b pb-3">
+                    {itemActionLabel}
+                </h2>
                 
+                {/* Przyciski Zakładek (tylko przy tworzeniu) */}
+                {!isEditing && (
+                    <div className="flex mb-6 p-1 bg-gray-100 rounded-lg space-x-1">
+                        <button 
+                            onClick={() => handleTabClick('event')} 
+                            className={`flex-1 py-2 px-4 text-sm font-semibold rounded-lg transition duration-150 ${isEventType ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            Wydarzenie (Event)
+                        </button>
+                        <button 
+                            onClick={() => handleTabClick('task')} 
+                            className={`flex-1 py-2 px-4 text-sm font-semibold rounded-lg transition duration-150 ${!isEventType ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            Zadanie (Task)
+                        </button>
+                    </div>
+                )}
+
                 {renderFormFields()}
 
                 <div className="flex justify-between mt-8 pt-4 border-t">

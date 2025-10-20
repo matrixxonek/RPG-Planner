@@ -64,10 +64,15 @@ export type ItemApi = TaskApi | EventApi;
 
 // =========================================================================
 // 3. TYPY POMOCNICZE I UNIE
+// ZMIANA: Dodano jawną definicję i eksport typów Draft, aby FormDisplay mógł ich używać
 // =========================================================================
 
 export type EditableItem = Event | Task; // Element z ID (do edycji/usuwania)
-export type ItemDraft = Omit<Event, 'id'> | Omit<Task, 'id'>; // Element bez ID (do tworzenia)
+
+export type EventDraft = Omit<Event, 'id'>;
+export type TaskDraft = Omit<Task, 'id'>;
+
+export type ItemDraft = EventDraft | TaskDraft; // Element bez ID (do tworzenia)
 
 // Typ stanu Modala: może być edytowalnym elementem, nowym elementem-draftem, lub null
 export type ItemToEdit = EditableItem | ItemDraft | null;
@@ -89,7 +94,5 @@ export const isTask = (item: ItemToEdit | ItemApi): item is Task | Omit<Task, 'i
 
 // Sprawdza, czy element ma ID (jest modyfikacją, a nie nowym draftem)
 export const isModification = (item: ItemToEdit | ItemApi): item is EditableItem | ItemApi => {
-    // Sprawdzamy, czy item jest zdefiniowany i ma właściwość 'id'
-    // Musimy uważać na Date, które może mieć 'id' w swoich prototypach.
     return !!item && typeof item === 'object' && 'id' in item && typeof (item as any).id === 'string' && (item as any).id.length > 0;
 };

@@ -1,16 +1,11 @@
 [
   {
-    "id": "9ee96da3-fd6c-40a7-9f12-45c17315f460",
-    "title": "hollow knight",
-    "start": "2025-09-28T12:30:00.000Z",
-    "end": "2025-09-28T20:00:00.000Z",
-    "allDay": false
-  },
-  {
-    "id": "ba812096-7828-4509-b45e-61b8a48304ff",
-    "title": "śniadanie",
-    "start": "2025-09-28T07:00:00.000Z",
-    "end": "2025-09-28T11:00:00.000Z",
-    "allDay": false
+    "id": "b7d2100f-7704-4114-bcde-3ceaf8ff064d",
+    "dataType": "event",
+    "title": "Obiad z babusią",
+    "start": "2025-10-17T14:30:00.000Z",
+    "end": "2025-10-17T15:30:00.000Z",
+    "allDay": false,
+    "category": "prywatne"
   }
 ]
