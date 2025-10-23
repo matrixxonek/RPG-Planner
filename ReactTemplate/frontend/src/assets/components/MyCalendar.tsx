@@ -9,46 +9,49 @@ import { pl } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
 // --------------------------------------------------------------------------
-// SYMULACJA TYPÓW z '../types/taskTypes.ts' (Dla runnable kodu)
+// Import Typów i Guardów - NAPRAWIONO BŁĄD 'EventDraft'
 // --------------------------------------------------------------------------
-interface BaseItem {
-    id: string;
-    title: string;
-    dataType: 'event' | 'task';
-    cyclical?: boolean;
-    details?: string;
-}
-export interface Event extends BaseItem {
-    dataType: 'event';
-    start: Date;
-    end: Date;
-    allDay: boolean;
-    category?: string; 
-}
-export interface Task extends BaseItem {
-    dataType: 'task';
-    deadline: Date;
-    progress: 'planned' | 'working on it' | 'completed'; 
-    category: 'mind' | 'physical' | 'social'; 
-}
-export type EditableItem = Event | Task;
-export type EventDraft = Omit<Event, 'id'>;
-export type TaskDraft = Omit<Task, 'id'>;
-export type ItemDraft = EventDraft | TaskDraft;
-export type ItemToEdit = EditableItem | ItemDraft | null;
+import type { 
+    Event, Task, EditableItem, ItemDraft, ItemToEdit,
+    // DODANO BRAKUJĄCE TYPY DRAFTÓW
+    EventDraft, TaskDraft
+} from '../types/taskTypes'; 
+import { 
+    isModification, isTask, isEvent, 
+} from '../types/taskTypes'; 
 
-export const isModification = (item: ItemToEdit): item is EditableItem => {
-    return !!item && typeof item === 'object' && 'id' in item && typeof (item as any).id === 'string' && (item as any).id.length > 0;
-};
-// Type Guards dla kalendarza
-export const isTask = (item: EditableItem | ItemDraft | null): item is Task | TaskDraft => {
-    return !!item && item.dataType === 'task';
-};
-
-// --------------------------------------------------------------------------
 // ZMIENIONY IMPORT: Używamy ujednoliconego hooka
 import { useCalendarItems } from '../hooks/useCalendarTasks.ts'; 
 import FormDisplay from './FormDisplay.tsx';
+
+// --- CUSTOM EVENT COMPONENT ---
+// Ten komponent odpowiada za renderowanie zawartości bloku Task/Event
+interface CustomEventProps {
+    event: EditableItem;
+    title: string;
+}
+
+const CustomEvent: React.FC<CustomEventProps> = ({ event, title }) => {
+    const isTaskItem = isTask(event);
+    
+    const taskStyle: React.CSSProperties = {
+        cursor: isTaskItem ? 'default' : 'pointer',
+        fontWeight: isTaskItem ? 'bold' : 'normal',
+        whiteSpace: 'normal', 
+        lineHeight: '1.2'
+    };
+    
+    const isCompleted = isTaskItem && (event as Task).progress === 'completed';
+    
+    return (
+        <div style={taskStyle} title={event.details}>
+            {isCompleted && <span className="mr-1">✅</span>}
+            <span className="text-sm">{title}</span>
+        </div>
+    );
+};
+// --- END CUSTOM EVENT COMPONENT ---
+
 
 interface DndProps<TEvent extends object> extends CalendarProps<TEvent> {
     draggable: boolean;
@@ -135,12 +138,13 @@ function MyCalendar() {
           const slotInfo = interactionData;
           
           itemForEdit = {
-              dataType: 'event', 
-              title: 'Nowe wydarzenie',
-              start: slotInfo.start,
-              end: slotInfo.end,
-              allDay: false, 
-          } as EventDraft;
+            dataType: 'event', 
+            title: 'Nowe wydarzenie',
+            start: slotInfo.start,
+            end: slotInfo.end,
+            allDay: false,
+            cyclical: false, // Domyślnie NIE cykliczny
+        } as EventDraft;
           
       } else if ('id' in interactionData && 'dataType' in interactionData) {
           // SCENARI2: KLIKNIĘCIE W ISTNIEJĄCY ELEMENT (EDYCJA)
@@ -167,43 +171,35 @@ function MyCalendar() {
       setItemToEdit(itemForEdit); 
   };
   
-  // FUNKCJA DODAJĄCA STYLE DLA ZDARZEŃ W KALENDARZU (Kolorowanie + Blokada D&D)
+  // FUNKCJA DODAJĄCA STYLE I ATTRYBUTY DLA ZDARZEŃ W KALENDARZU
   const eventPropGetter = (event: EditableItem) => {
       let style: React.CSSProperties = {};
-      let attributes: { draggable?: boolean, resizable?: boolean, title?: string, className?: string } = {}; // Dodano className i title
+      let attributes: { draggable?: boolean, resizable?: boolean, className?: string } = {}; 
 
       // Używamy Type Guard do określenia, czy to Task
       if (isTask(event)) {
           const task = event as Task;
           
-          // CAŁKOWITA BLOKADA D&D i RESIZE DLA TASKÓW
-          attributes.draggable = false;
-          attributes.resizable = false;
-          attributes.className = 'rbc-no-drag'; // Klasa dla ewentualnego nadpisania natywnych stylów RBC
-          
-          // Ustawienie kursora na "default" usuwa wizualny feedback przeciągania
-          style.cursor = 'default'; 
-          
-          // Ustawienie TITLE dla tooltipa (etykietki narzędziowej)
-          attributes.title = task.title;
-
+          // BLOKADA D&D i RESIZE DLA TASKÓW
+          attributes.draggable = false;
+          attributes.resizable = false;
+          
           // Używamy kodów HEX dla CSS
           const colorMap: { [key in Task['category']]: string } = {
-              'mind': '#3b82f6', 
-              'physical': '#10b981', 
-              'social': '#ef4444' 
+              'mind': '#3b82f6', // blue-500
+              'physical': '#10b981', // green-500
+              'social': '#ef4444' // red-500
           };
           
           const baseColor = colorMap[task.category] || '#6b7280';
           
           style = {
-              ...style, // Zachowanie ustawionego kursora
               backgroundColor: baseColor,
               borderRadius: '5px',
               opacity: 1,
               color: 'white',
               border: `1px solid ${baseColor}`,
-             whiteSpace: 'normal', // Zezwolenie na zawijanie tytułu
+              pointerEvents: 'none', // Definitywnie blokuje interakcję myszy z Taskiem
           };
           
           // Jeśli Task jest zakończony, przyciemniamy
@@ -211,10 +207,7 @@ function MyCalendar() {
               style = { ...style, opacity: 0.4, border: 'none' };
           }
 
-      } else if (event.dataType === 'event') {
-          // Ustawienie TITLE dla tooltipa Eventu
-          attributes.title = event.title;
-
+      } else if (isEvent(event)) {
           // Logika dla standardowych Eventów (kolorowanie na podstawie kategorii)
           const eventColorMap: { [key: string]: string } = {
               'praca': '#9333ea', // fioletowy
@@ -228,7 +221,6 @@ function MyCalendar() {
               borderRadius: '5px',
               opacity: 0.9,
               border: 'none',
-             whiteSpace: 'normal', 
           };
       }
       
@@ -244,7 +236,7 @@ function MyCalendar() {
           <h1 className="text-3xl font-extrabold text-indigo-700 mb-6 border-b-2 border-indigo-200 pb-2">
             Mój Kalendarz Zadań i Wydarzeń
           </h1>
-          <div className className="shadow-xl rounded-lg overflow-hidden bg-white p-4">
+          <div className="shadow-xl rounded-lg overflow-hidden bg-white p-4">
             <DndCalendar
               localizer={localizer}
               events={events} // Zunifikowana lista Eventów i Tasków (EditableItem[])
@@ -254,7 +246,12 @@ function MyCalendar() {
               
               // DODANO: Funkcja do kolorowania, blokady D&D i tytułów
               eventPropGetter={eventPropGetter} 
-              
+             
+             // UŻYCIE WŁASNEGO KOMPONENTU DO RENDEROWANIA
+             components={{
+                 event: CustomEvent 
+             }}
+
               defaultView="month"
               views={["month", "week", "day"]}
               style={{ height: "70vh" }}
@@ -269,9 +266,10 @@ function MyCalendar() {
               draggable
               resizable
               onSelectSlot={handleFormOpen}
-              onEventDrop={handleFormOpen}
+              onEventDrop={handleFormOpen} 
               onEventResize={handleFormOpen}
-              onSelectEvent={handleFormOpen}
+              // NAPRAWIONO: onSelectEvent musi przyjmować EditableItem
+              onSelectEvent={(event: EditableItem) => setItemToEdit(event)}
             />
           </div>
         </div>

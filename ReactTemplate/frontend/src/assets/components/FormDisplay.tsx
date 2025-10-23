@@ -9,51 +9,49 @@ const EVENT_CATEGORIES = [
     { value: 'inne', label: 'Inne' },
 ];
 
+// Dostępne jednostki powtarzalności
+const FREQUENCY_OPTIONS = [
+    { value: 'daily', label: 'Dni' },
+    { value: 'weekly', label: 'Tygodnie' },
+    { value: 'monthly', label: 'Miesiące' },
+    { value: 'yearly', label: 'Lata' },
+];
+
 interface FormProps {
     initialData: TaskTypes.ItemToEdit;
     onSubmit: (item: TaskTypes.EditableItem | TaskTypes.ItemDraft) => void;
     onClose: () => void;
-    // Oczekujemy ID do usunięcia
     onDelete: (id: string) => void;
 }
 
-function FormDisplay(props: FormProps){
+function FormDisplay(props: FormProps) {
     if (!props.initialData) return null;
 
-    // Typujemy stan jawnie, aby uniknąć problemów z 'null' w funkcjach aktualizujących
     const [formData, setFormData] = useState<TaskTypes.ItemToEdit>(props.initialData); 
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    // Zapewnienie, że stan jest aktualizowany, gdy props.initialData się zmieni
     useEffect(() => {
         setFormData(props.initialData);
     }, [props.initialData]);
 
-    // Używamy guardów typu do określenia stanu formularza
     const isEditing = TaskTypes.isModification(props.initialData);
-    // Sprawdzamy aktualny typ w stanie
-    const isEventType = TaskTypes.isEvent(formData); 
-    
+    const isEventType = TaskTypes.isEvent(formData);
     const itemTypeLabel = isEventType ? "Wydarzenie (Event)" : "Zadanie (Task)";
     const itemActionLabel = isEditing 
         ? `Edycja: ${formData?.title || 'Brak tytułu'}` 
         : `Tworzenie: ${itemTypeLabel}`;
-    
+
     // --- Utility Functions ---
 
-    // Funkcja do formatowania daty dla input[type="datetime-local"]
     const formatDateInput = (date: Date): string => {
         if (!(date instanceof Date) || isNaN(date.getTime())) return '';
-        // Używamy toISOString i obcinamy, co jest niezawodnym sposobem dla input[datetime-local]
         return date.toISOString().slice(0, 16); 
     };
 
-    // Ujednolicony handler zmian w formularzu
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         
         setFormData(prev => {
-            // Ponieważ stan jest ItemToEdit (zawiera null), musimy to obsłużyć
             if (!prev) return null;
             
             // Obsługa dat
@@ -63,45 +61,78 @@ function FormDisplay(props: FormProps){
                 return { ...prev, [name]: dateValue };
             }
 
-            // Obsługa checkboxów (allDay, cyclical)
+            // Obsługa checkboxów
             if (type === 'checkbox') {
-                 return { ...prev, [name]: (e.target as HTMLInputElement).checked };
+                // Jeśli wyłączamy cykliczność, usuwamy też pole recurrence
+                if (name === 'cyclical' && !(e.target as HTMLInputElement).checked) {
+                    const { recurrence, ...rest } = prev;
+                    return { ...rest, cyclical: false };
+                }
+                return { ...prev, [name]: (e.target as HTMLInputElement).checked };
             }
             
-            // Obsługa pozostałych pól (title, details, progress, category)
+            // Obsługa pozostałych pól
             return { ...prev, [name]: value };
         });
     }, []);
+    
+    // Ujednolicony handler dla pól Recurrence
+    const handleRecurrenceChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        
+        setFormData(prev => {
+            if (!prev || !prev.cyclical) return prev;
 
-    // Nowa funkcja do obsługi przełączania zakładek w trybie DRAFT
+            // Inicjalizacja domyślnej reguły powtarzania, jeśli jej brakuje
+            const currentRecurrence = prev.recurrence || { frequency: 'weekly', interval: 1 };
+            let updatedRecurrence = { ...currentRecurrence };
+
+            if (name === 'interval') {
+                // Zapewniamy, że interwał jest liczbą >= 1
+                updatedRecurrence.interval = Math.max(1, parseInt(value) || 1);
+            } else if (name === 'untilDate') {
+                // Konwersja daty lub ustawienie na undefined/null jeśli puste
+                updatedRecurrence.untilDate = value ? new Date(value) : undefined;
+            } else if (name === 'frequency') {
+                updatedRecurrence.frequency = value as TaskTypes.Recurrence['frequency'];
+            }
+
+            return { ...prev, recurrence: updatedRecurrence };
+        });
+    }, []);
+
     const handleTabClick = (newType: 'event' | 'task') => {
         if (!formData || isEditing || formData.dataType === newType) return; 
 
+        // Pobieramy pola wspólne i cykliczność
+        const commonFields = {
+            title: formData.title || (newType === 'task' ? 'Nowe zadanie' : 'Nowe wydarzenie'),
+            details: formData.details,
+            cyclical: formData.cyclical,
+            recurrence: formData.recurrence,
+        };
+
         if (newType === 'task') {
-            // Konwersja na Task Draft
             const eventAsDraft = formData as TaskTypes.EventDraft;
             const taskDraft: TaskTypes.TaskDraft = {
                 dataType: 'task',
-                title: eventAsDraft.title || 'Nowe zadanie',
+                ...commonFields,
                 deadline: eventAsDraft.start || new Date(), // Używamy start jako domyślny deadline
                 progress: 'planned',
                 category: 'mind', // Domyślna kategoria Taska
-                details: eventAsDraft.details,
-                cyclical: eventAsDraft.cyclical,
             };
             setFormData(taskDraft);
         } else if (newType === 'event') {
-             // Konwersja na Event Draft
             const taskAsDraft = formData as TaskTypes.TaskDraft;
+            const defaultCategory = EVENT_CATEGORIES.find(c => c.value === taskAsDraft.category)?.value || EVENT_CATEGORIES[0].value;
+
             const eventDraft: TaskTypes.EventDraft = {
                 dataType: 'event',
-                title: taskAsDraft.title || 'Nowe wydarzenie',
+                ...commonFields,
                 start: taskAsDraft.deadline || new Date(),
                 end: new Date((taskAsDraft.deadline || new Date()).getTime() + 60 * 60 * 1000), // Domyślny koniec: +1h
                 allDay: false,
-                category: taskAsDraft.category ? EVENT_CATEGORIES.find(c => c.value === taskAsDraft.category)?.value || EVENT_CATEGORIES[0].value : EVENT_CATEGORIES[0].value, // Przenosimy category lub domyślny
-                details: taskAsDraft.details,
-                cyclical: taskAsDraft.cyclical,
+                category: defaultCategory,
             };
             setFormData(eventDraft);
         }
@@ -109,26 +140,29 @@ function FormDisplay(props: FormProps){
 
     const handleSave = () => {
         if (formData) {
-            // Walidacja:
             if (!formData.title || formData.title.trim() === '') {
                 console.error("Błąd: Tytuł jest wymagany.");
                 return; 
             }
             
-            // Przekazanie ujednoliconego obiektu do rodzica i zamknięcie
+            // Walidacja cykliczności: jeśli cykliczne, musi mieć recurrence i interwał >= 1
+            if (formData.cyclical) {
+                 if (!formData.recurrence || (formData.recurrence.interval || 0) < 1) {
+                     console.error("Błąd: Element cykliczny musi mieć interwał większy niż 0.");
+                     return;
+                 }
+            }
+            
             props.onSubmit(formData as TaskTypes.EditableItem | TaskTypes.ItemDraft);
         }
     };
 
     const handleDeleteClick = () => {
-        if (isEditing) {
-            setConfirmDelete(true); // Otwieramy modal potwierdzenia
-        }
+        if (isEditing) setConfirmDelete(true);
     };
 
     const confirmDeletion = () => {
         if (TaskTypes.isModification(props.initialData)) {
-            // Używamy props.onDelete, które zamyka modal w komponencie nadrzędnym
             props.onDelete(props.initialData.id); 
         } else {
             console.error("Nie można usunąć, ponieważ brakuje ID elementu.");
@@ -136,17 +170,68 @@ function FormDisplay(props: FormProps){
         setConfirmDelete(false);
     };
 
-    // --- RENDEROWANIE PÓL FORMULARZA ---
+    // --- Recurrence Picker Component (Zagnieżdżony) ---
+    const RecurrencePicker: React.FC = () => {
+        const rec = formData?.recurrence || { frequency: 'weekly', interval: 1 };
+        
+        return (
+            <div className="border border-indigo-200 p-3 rounded-lg bg-indigo-50 space-y-3 mt-3">
+                <h4 className="text-sm font-semibold text-indigo-700">Reguła Powtarzania</h4>
+                <div className="grid grid-cols-3 gap-3 items-center">
+                    {/* Interwał */}
+                    <div className="col-span-1">
+                        <label className="block text-xs font-medium text-gray-600">Powtarzaj co</label>
+                        <input
+                            type="number"
+                            name="interval"
+                            min="1"
+                            value={rec.interval}
+                            onChange={handleRecurrenceChange}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                    </div>
+                    {/* Częstotliwość */}
+                    <div className="col-span-2">
+                         <label className="block text-xs font-medium text-gray-600">Jednostka czasu</label>
+                         <select
+                            name="frequency"
+                            value={rec.frequency}
+                            onChange={handleRecurrenceChange}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                         >
+                            {FREQUENCY_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                         </select>
+                    </div>
+                </div>
+                
+                {/* Data Końcowa */}
+                <div>
+                     <label className="block text-xs font-medium text-gray-600">Powtarzaj do (opcjonalnie)</label>
+                     <input
+                        type="datetime-local"
+                        name="untilDate"
+                        // Używamy opcjonalnego łańcuchowania i formatDateInput, jeśli untilDate istnieje
+                        value={rec.untilDate instanceof Date && !isNaN(rec.untilDate.getTime()) ? formatDateInput(rec.untilDate) : ''}
+                        onChange={handleRecurrenceChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                     />
+                </div>
+            </div>
+        );
+    };
+    // --- End Recurrence Picker Component ---
+
 
     const renderFormFields = () => {
         if (!formData) return null;
-
         const currentItem = formData; 
 
         return (
             <div className="space-y-4">
                 {/* 1. Tytuł */}
-                <div>
+                 <div>
                     <label htmlFor="title" className="block text-sm font-medium text-gray-700">Tytuł</label>
                     <input 
                         id="title"
@@ -289,6 +374,10 @@ function FormDisplay(props: FormProps){
                         Element cykliczny/powtarzalny
                     </label>
                 </div>
+
+                {/* 6. Recurrence Picker - wyświetlany tylko gdy zaznaczono cykliczność */}
+                {currentItem.cyclical && <RecurrencePicker />}
+                
             </div>
         );
     };

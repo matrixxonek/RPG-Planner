@@ -1,6 +1,28 @@
 // --- Definicje Typów dla Kalendarza i Zadań ---
 
 // =========================================================================
+// 0. TYPY DANYCH CYKLICZNYCH
+// =========================================================================
+
+/**
+ * Definiuje regułę powtarzalności dla cyklicznych elementów.
+ */
+export interface Recurrence {
+    /** * Jednostka czasu powtarzalności.
+     * Domyślnie element powtarza się w ten sam dzień (Event) lub termin (Task) co element pierwotny.
+     */
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'; 
+    
+    /** * Interwał powtarzania (np. 1 dla "codziennie", 2 dla "co 2 tygodnie").
+     */
+    interval: number; 
+    
+    /** * Data końcowa powtarzania (opcjonalna). Po tej dacie powtarzanie się zakończy.
+     */
+    untilDate?: Date; 
+}
+
+// =========================================================================
 // 1. MODELE DANYCH KLIENTA (JS Date Objects)
 // =========================================================================
 
@@ -11,8 +33,9 @@ export interface BaseItem {
     id: string;
     title: string;
     dataType: 'event' | 'task';
-    cyclical?: boolean;
+    cyclical: boolean; // Czy element ma być powtarzalny
     details?: string;
+    recurrence?: Recurrence; // Reguła cyklu
 }
 
 /**
@@ -44,16 +67,18 @@ export interface Task extends BaseItem {
 /**
  * API-friendly wersja Event (daty jako stringi).
  */
-export interface EventApi extends Omit<Event, 'start' | 'end'> {
+export interface EventApi extends Omit<Event, 'start' | 'end' | 'recurrence'> {
     start: string;
     end: string;
+    recurrence?: Omit<Recurrence, 'untilDate'> & { untilDate?: string };
 }
 
 /**
  * API-friendly wersja Task (daty jako stringi).
  */
-export interface TaskApi extends Omit<Task, 'deadline'> {
+export interface TaskApi extends Omit<Task, 'deadline' | 'recurrence'> {
     deadline: string;
+    recurrence?: Omit<Recurrence, 'untilDate'> & { untilDate?: string };
 }
 
 /**
@@ -64,17 +89,12 @@ export type ItemApi = TaskApi | EventApi;
 
 // =========================================================================
 // 3. TYPY POMOCNICZE I UNIE
-// ZMIANA: Dodano jawną definicję i eksport typów Draft, aby FormDisplay mógł ich używać
 // =========================================================================
 
 export type EditableItem = Event | Task; // Element z ID (do edycji/usuwania)
-
 export type EventDraft = Omit<Event, 'id'>;
 export type TaskDraft = Omit<Task, 'id'>;
-
-export type ItemDraft = EventDraft | TaskDraft; // Element bez ID (do tworzenia)
-
-// Typ stanu Modala: może być edytowalnym elementem, nowym elementem-draftem, lub null
+export type ItemDraft = EventDraft | TaskDraft;
 export type ItemToEdit = EditableItem | ItemDraft | null;
 
 
@@ -83,12 +103,12 @@ export type ItemToEdit = EditableItem | ItemDraft | null;
 // =========================================================================
 
 // Sprawdza, czy element jest Wydarzeniem (Event/Draft)
-export const isEvent = (item: ItemToEdit | ItemApi): item is Event | Omit<Event, 'id'> | EventApi => {
+export const isEvent = (item: ItemToEdit | ItemApi): item is Event | EventDraft | EventApi => {
     return !!item && item.dataType === 'event';
 };
 
 // Sprawdza, czy element jest Zadaniem (Task/Draft)
-export const isTask = (item: ItemToEdit | ItemApi): item is Task | Omit<Task, 'id'> | TaskApi => {
+export const isTask = (item: ItemToEdit | ItemApi): item is Task | TaskDraft | TaskApi => {
     return !!item && item.dataType === 'task';
 };
 
