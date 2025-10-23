@@ -56,7 +56,7 @@ Start by cloning the repository and installing all necessary dependencies:
 git clone <YOUR_REPOSITORY_URL>
 cd lifelevel-planner # (Adjust to your main directory name)
 npm install
-# or
+or
 yarn install
 
 
@@ -79,7 +79,7 @@ echo "[]" > tasks.json
 The Express.js server handles all CRUD operations and data synchronization. Launch it in your first terminal window:
 
 node server.js
-# The console should confirm: Server API running at http://localhost:3001
+The console should confirm: Server API running at http://localhost:3001
 
 
 4. Launch the Client Application (Frontend)
@@ -87,7 +87,7 @@ node server.js
 Open a second terminal window and start the React development server:
 
 npm run start
-# or
+or
 yarn start
 
-# The application will open in your browser, typically at http://localhost:3000.
+The application will open in your browser, typically at http://localhost:3000.
